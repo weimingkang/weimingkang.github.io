@@ -1,0 +1,754 @@
+<!DOCTYPE html>
+
+
+
+  
+
+
+<html class="theme-next pisces use-motion" lang="zh-Hans">
+<head>
+  <meta charset="UTF-8"/>
+<meta http-equiv="X-UA-Compatible" content="IE=edge" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1"/>
+<meta name="theme-color" content="#222">
+
+
+
+
+
+
+
+
+
+<meta http-equiv="Cache-Control" content="no-transform" />
+<meta http-equiv="Cache-Control" content="no-siteapp" />
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+  <link href="/lib/fancybox/source/jquery.fancybox.css?v=2.1.5" rel="stylesheet" type="text/css" />
+
+
+
+
+
+
+
+<link href="/lib/font-awesome/css/font-awesome.min.css?v=4.6.2" rel="stylesheet" type="text/css" />
+
+<link href="/css/main.css?v=5.1.4" rel="stylesheet" type="text/css" />
+
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png?v=5.1.4">
+
+
+  <link rel="mask-icon" href="/images/logo.svg?v=5.1.4" color="#222">
+
+
+
+
+
+  <meta name="keywords" content="Flink," />
+
+
+
+
+
+
+
+
+
+
+<meta name="description" content="Flink WatermarkEventTime 和 Watermark通常情况下，由于网络或系统等外部因数的影响，事件数据往往不能及时传输至Flink系统中，导致数据乱序到达或者延迟到达等问题，因此，需要有一种机制能够控制数据处理的过程和进度，比如基于事件时间的Window创建后，具体该如何确定Window的数据元素已经全部到达。如果确定全部到达，就可以对Window的所有数据做窗口计算操作（如">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Flink Watermark">
+<meta property="og:url" content="http://example.com/2021/02/20/test-my-site/index.html">
+<meta property="og:site_name" content="wmk&#39;s Blog">
+<meta property="og:description" content="Flink WatermarkEventTime 和 Watermark通常情况下，由于网络或系统等外部因数的影响，事件数据往往不能及时传输至Flink系统中，导致数据乱序到达或者延迟到达等问题，因此，需要有一种机制能够控制数据处理的过程和进度，比如基于事件时间的Window创建后，具体该如何确定Window的数据元素已经全部到达。如果确定全部到达，就可以对Window的所有数据做窗口计算操作（如">
+<meta property="og:locale">
+<meta property="og:image" content="https://ci.apache.org/projects/flink/flink-docs-release-1.12/fig/parallel_kafka_watermarks.svg">
+<meta property="article:published_time" content="2021-02-20T03:38:06.000Z">
+<meta property="article:modified_time" content="2021-02-22T02:40:12.887Z">
+<meta property="article:author" content="weimingkang">
+<meta property="article:tag" content="Flink">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://ci.apache.org/projects/flink/flink-docs-release-1.12/fig/parallel_kafka_watermarks.svg">
+
+
+
+<script type="text/javascript" id="hexo.configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '',
+    scheme: 'Pisces',
+    version: '5.1.4',
+    sidebar: {"position":"left","display":"post","offset":12,"b2t":false,"scrollpercent":false,"onmobile":false},
+    fancybox: true,
+    tabs: true,
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},
+    duoshuo: {
+      userId: '0',
+      author: '博主'
+    },
+    algolia: {
+      applicationID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    }
+  };
+</script>
+
+
+
+  <link rel="canonical" href="http://example.com/2021/02/20/test-my-site/"/>
+
+
+
+
+
+  <title>Flink Watermark | wmk's Blog</title>
+  
+
+
+
+
+
+
+
+
+<meta name="generator" content="Hexo 5.3.0"></head>
+
+<body itemscope itemtype="http://schema.org/WebPage" lang="zh-Hans">
+
+  
+  
+    
+  
+
+  <div class="container sidebar-position-left page-post-detail">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-wrapper">
+  <div class="site-meta ">
+    
+
+    <div class="custom-logo-site-title">
+      <a href="/"  class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">wmk's Blog</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+      
+        <p class="site-subtitle">每天一篇</p>
+      
+  </div>
+
+  <div class="site-nav-toggle">
+    <button>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+<nav class="site-nav">
+  
+
+  
+    <ul id="menu" class="menu">
+      
+        
+        <li class="menu-item menu-item-home">
+          <a href="/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-question-circle"></i> <br />
+            
+            首页
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-tags">
+          <a href="/tags" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-question-circle"></i> <br />
+            
+            标签
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-archives">
+          <a href="/archives" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-question-circle"></i> <br />
+            
+            归档
+          </a>
+        </li>
+      
+
+      
+    </ul>
+  
+
+  
+</nav>
+
+
+
+ </div>
+    </header>
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+    
+
+  
+
+  
+  
+  
+
+  <article class="post post-type-normal" itemscope itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block">
+    <link itemprop="mainEntityOfPage" href="http://example.com/2021/02/20/test-my-site/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="">
+      <meta itemprop="description" content="">
+      <meta itemprop="image" content="/images/avatar.gif">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="wmk's Blog">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h1 class="post-title" itemprop="name headline">Flink Watermark</h1>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">发表于</span>
+              
+              <time title="创建于" itemprop="dateCreated datePublished" datetime="2021-02-20T11:38:06+08:00">
+                2021-02-20
+              </time>
+            
+
+            
+
+            
+          </span>
+
+          
+
+          
+            
+          
+
+          
+          
+
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        <h2 id="Flink-Watermark"><a href="#Flink-Watermark" class="headerlink" title="Flink Watermark"></a>Flink Watermark</h2><h3 id="EventTime-和-Watermark"><a href="#EventTime-和-Watermark" class="headerlink" title="EventTime 和 Watermark"></a>EventTime 和 Watermark</h3><p>通常情况下，由于网络或系统等外部因数的影响，事件数据往往不能及时传输至Flink系统中，导致<strong>数据乱序</strong>到达或者<strong>延迟到达</strong>等问题，因此，需要有一种机制能够控制数据处理的过程和进度，比如基于事件时间的Window创建后，具体该如何确定Window的数据元素已经全部到达。如果确定全部到达，就可以对Window的所有数据做窗口计算操作（如汇总、分组），如果数据没有全部达到，则继续等待该窗口中的数据全部到达才开始处理。这种情况下就需要用到水位线（<strong>WaterMarks</strong>）机制，它能够衡量数据处理进度（表达数据到达的完整性），保证事件数据（全部）到达Flink系统，或者在乱序及延迟到达时，也能够像预期一样计算出正确并且连续的结果。</p>
+<h3 id="Watermark的生成"><a href="#Watermark的生成" class="headerlink" title="Watermark的生成"></a>Watermark的生成</h3><p>为了使用<em>事件时间</em>语义，Flink 应用程序需要知道事件<em>时间戳</em>对应的字段，意味着数据流中的每个元素都需要拥有<em>可分配</em>的事件时间戳。其通常通过使用 <code>TimestampAssigner</code> API 从元素中的某个字段去访问/提取时间戳。</p>
+<p>时间戳的分配与 watermark 的生成是齐头并进的，其可以告诉 Flink 应用程序事件时间的进度。其可以通过指定 <code>WatermarkGenerator</code> 来配置 watermark 的生成方式。</p>
+<p>使用 Flink API 时需要设置一个同时包含 <code>TimestampAssigner</code> 和 <code>WatermarkGenerator</code> 的 <code>WatermarkStrategy</code>。<code>WatermarkStrategy</code> 工具类中也提供了许多常用的 watermark 策略，并且用户也可以在某些必要场景下构建自己的 watermark 策略。<code>WatermarkStrategy</code>接口如下：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">interface</span> <span class="title">WatermarkStrategy</span>&lt;<span class="title">T</span>&gt; <span class="keyword">extends</span> <span class="title">TimestampAssignerSupplier</span>&lt;<span class="title">T</span>&gt;, <span class="title">WatermarkGeneratorSupplier</span>&lt;<span class="title">T</span>&gt;</span>&#123;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/**</span></span><br><span class="line"><span class="comment">     * 根据策略实例化一个可分配时间戳的 &#123;<span class="doctag">@link</span> TimestampAssigner&#125;。</span></span><br><span class="line"><span class="comment">     */</span></span><br><span class="line">    <span class="meta">@Override</span></span><br><span class="line">    <span class="function">TimestampAssigner&lt;T&gt; <span class="title">createTimestampAssigner</span><span class="params">(TimestampAssignerSupplier.Context context)</span></span>;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/**</span></span><br><span class="line"><span class="comment">     * 根据策略实例化一个 watermark 生成器。</span></span><br><span class="line"><span class="comment">     */</span></span><br><span class="line">    <span class="meta">@Override</span></span><br><span class="line">    <span class="function">WatermarkGenerator&lt;T&gt; <span class="title">createWatermarkGenerator</span><span class="params">(WatermarkGeneratorSupplier.Context context)</span></span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>如上所述，通常情况下，你不用实现此接口，而是可以使用 <code>WatermarkStrategy</code> 工具类中通用的 watermark 策略，或者可以使用这个工具类将自定义的 <code>TimestampAssigner</code> 与 <code>WatermarkGenerator</code> 进行绑定。例如，你想要要使用有界无序（bounded-out-of-orderness）watermark 生成器和一个 lambda 表达式作为时间戳分配器，那么可以按照如下方式实现：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">WatermarkStrategy</span><br><span class="line">        .&lt;Tuple2&lt;Long, String&gt;&gt;forBoundedOutOfOrderness(Duration.ofSeconds(<span class="number">20</span>))</span><br><span class="line">        .withTimestampAssigner((event, timestamp) -&gt; event.f0);</span><br></pre></td></tr></table></figure>
+<blockquote>
+<p>其中 <code>TimestampAssigner</code> 的设置与否是可选的，大多数情况下，可以不用去特别指定。例如，当使用 Kafka 或 Kinesis 数据源时，你可以直接从 Kafka/Kinesis 数据源记录中获取到时间戳。</p>
+</blockquote>
+<h3 id="使用-Watermark-策略"><a href="#使用-Watermark-策略" class="headerlink" title="使用 Watermark 策略"></a>使用 Watermark 策略</h3><p><code>WatermarkStrategy</code> 可以在 Flink 应用程序中的两处使用，第一种是直接在数据源上使用，第二种是直接在非数据源的操作之后使用。</p>
+<p>第一种方式相比会更好，因为数据源可以利用 watermark 生成逻辑中有关分片/分区（shards/partitions/splits）的信息。使用这种方式，数据源通常可以更精准地跟踪 watermark，整体 watermark 生成将更精确。直接在源上指定 <code>WatermarkStrategy</code> 意味着你必须使用特定数据源接口，参阅 <a target="_blank" rel="noopener" href="https://ci.apache.org/projects/flink/flink-docs-release-1.12/zh/dev/event_timestamps_watermarks.html#watermark-%E7%AD%96%E7%95%A5%E4%B8%8E-kafka-%E8%BF%9E%E6%8E%A5%E5%99%A8">Watermark 策略与 Kafka 连接器</a>以了解如何使用 Kafka Connector，以及有关每个分区的 watermark 是如何生成以及工作的。</p>
+<p>仅当无法直接在数据源上设置策略时，才应该使用第二种方式（在任意转换操作之后设置 <code>WatermarkStrategy</code>）：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">final</span> StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();</span><br><span class="line"></span><br><span class="line">DataStream&lt;MyEvent&gt; stream = env.readFile(</span><br><span class="line">        myFormat, myFilePath, FileProcessingMode.PROCESS_CONTINUOUSLY, <span class="number">100</span>,</span><br><span class="line">        FilePathFilter.createDefaultFilter(), typeInfo);</span><br><span class="line"></span><br><span class="line">DataStream&lt;MyEvent&gt; withTimestampsAndWatermarks = stream</span><br><span class="line">        .filter( event -&gt; event.severity() == WARNING )</span><br><span class="line">        .assignTimestampsAndWatermarks(&lt;watermark strategy&gt;);</span><br><span class="line"></span><br><span class="line">withTimestampsAndWatermarks</span><br><span class="line">        .keyBy( (event) -&gt; event.getGroup() )</span><br><span class="line">        .window(TumblingEventTimeWindows.of(Time.seconds(<span class="number">10</span>)))</span><br><span class="line">        .reduce( (a, b) -&gt; a.add(b) )</span><br><span class="line">        .addSink(...);</span><br></pre></td></tr></table></figure>
+<p>使用 <code>WatermarkStrategy</code> 去获取流并生成带有时间戳的元素和 watermark 的新流时，如果原始流已经具有时间戳或 watermark，则新指定的时间戳分配器将覆盖原有的时间戳和 watermark。</p>
+<h3 id="处理空闲数据源"><a href="#处理空闲数据源" class="headerlink" title="处理空闲数据源"></a>处理空闲数据源</h3><p>如果数据源中的某一个分区/分片在一段时间内未发送事件数据，则意味着 <code>WatermarkGenerator</code> 也不会获得任何新数据去生成 watermark。我们称这类数据源为<em>空闲输入</em>或<em>空闲源</em>。在这种情况下，当某些其他分区仍然发送事件数据的时候就会出现问题。由于下游算子 watermark 的计算方式是取所有不同的上游并行数据源 watermark 的最小值，则其 watermark 将不会发生变化。</p>
+<p>为了解决这个问题，你可以使用 <code>WatermarkStrategy</code> 来检测空闲输入并将其标记为空闲状态。<code>WatermarkStrategy</code> 为此提供了一个工具接口：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">WatermarkStrategy</span><br><span class="line">        .&lt;Tuple2&lt;Long, String&gt;&gt;forBoundedOutOfOrderness(Duration.ofSeconds(<span class="number">20</span>))</span><br><span class="line">        .withIdleness(Duration.ofMinutes(<span class="number">1</span>));</span><br></pre></td></tr></table></figure>
+
+
+
+
+<h3 id="自定义-WatermarkGenerator"><a href="#自定义-WatermarkGenerator" class="headerlink" title="自定义 WatermarkGenerator"></a>自定义 WatermarkGenerator</h3><p><code>TimestampAssigner</code> 是一个可以从事件数据中提取时间戳字段的简单函数，我们无需详细查看其实现。但是 <code>WatermarkGenerator</code> 的编写相对就要复杂一些了，我们将在接下来的两小节中介绍如何实现此接口。WatermarkGenerator 接口代码如下：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/**</span></span><br><span class="line"><span class="comment"> * &#123;<span class="doctag">@code</span> WatermarkGenerator&#125; 可以基于事件或者周期性的生成 watermark。</span></span><br><span class="line"><span class="comment"> *</span></span><br><span class="line"><span class="comment"> * &lt;p&gt;&lt;b&gt;注意：&lt;/b&gt;  WatermarkGenerator 将以前互相独立的 &#123;<span class="doctag">@code</span> AssignerWithPunctuatedWatermarks&#125; </span></span><br><span class="line"><span class="comment"> * 和 &#123;<span class="doctag">@code</span> AssignerWithPeriodicWatermarks&#125; 一同包含了进来。</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line"><span class="meta">@Public</span></span><br><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">interface</span> <span class="title">WatermarkGenerator</span>&lt;<span class="title">T</span>&gt; </span>&#123;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/**</span></span><br><span class="line"><span class="comment">     * 每来一条事件数据调用一次，可以检查或者记录事件的时间戳，或者也可以基于事件数据本身去生成 watermark。</span></span><br><span class="line"><span class="comment">     */</span></span><br><span class="line">    <span class="function"><span class="keyword">void</span> <span class="title">onEvent</span><span class="params">(T event, <span class="keyword">long</span> eventTimestamp, WatermarkOutput output)</span></span>;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/**</span></span><br><span class="line"><span class="comment">     * 周期性的调用，也许会生成新的 watermark，也许不会。</span></span><br><span class="line"><span class="comment">     *</span></span><br><span class="line"><span class="comment">     * &lt;p&gt;调用此方法生成 watermark 的间隔时间由 &#123;<span class="doctag">@link</span> ExecutionConfig#getAutoWatermarkInterval()&#125; 决定。</span></span><br><span class="line"><span class="comment">     */</span></span><br><span class="line">    <span class="function"><span class="keyword">void</span> <span class="title">onPeriodicEmit</span><span class="params">(WatermarkOutput output)</span></span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>watermark 的生成方式本质上是有两种：<em>周期性生成</em>和<em>标记生成</em>。</p>
+<p><strong>周期性生成器</strong>通常通过 <code>onEvent()</code> 观察传入的事件数据，然后在框架调用 <code>onPeriodicEmit()</code> 时发出 watermark。</p>
+<p><strong>标记生成器</strong>将查看 <code>onEvent()</code> 中的事件数据，并等待检查在流中携带 watermark 的特殊标记事件或打点数据。当获取到这些事件数据时，它将立即发出 watermark。通常情况下，标记生成器不会通过 <code>onPeriodicEmit()</code> 发出 watermark。</p>
+<h3 id="自定义周期性-Watermark-生成器"><a href="#自定义周期性-Watermark-生成器" class="headerlink" title="自定义周期性 Watermark 生成器"></a>自定义周期性 Watermark 生成器</h3><p>周期性生成器会观察流事件数据并定期生成 watermark（其生成可能取决于流数据，或者完全基于处理时间）。</p>
+<p>生成 watermark 的时间间隔（每 <em>n</em> 毫秒）可以通过 <code>ExecutionConfig.setAutoWatermarkInterval(...)</code> 指定。每次都会调用生成器的 <code>onPeriodicEmit()</code> 方法，如果返回的 watermark 非空且值大于前一个 watermark，则将发出新的 watermark。</p>
+<p>如下是两个使用周期性 watermark 生成器的简单示例。注意：Flink 已经附带了 <code>BoundedOutOfOrdernessWatermarks</code>，它实现了 <code>WatermarkGenerator</code>，其工作原理与下面的 <code>BoundedOutOfOrdernessGenerator</code> 相似。可以在<a target="_blank" rel="noopener" href="https://ci.apache.org/projects/flink/flink-docs-release-1.12/zh/dev/event_timestamp_extractors.html">这里</a>参阅如何使用它的内容。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><span class="line">&#x2F;**</span><br><span class="line"> * &#123;@code WatermarkGenerator&#125; 可以基于事件或者周期性的生成 watermark。</span><br><span class="line"> *</span><br><span class="line"> * &lt;p&gt;&lt;b&gt;注意：&lt;&#x2F;b&gt;  WatermarkGenerator 将以前互相独立的 &#123;@code AssignerWithPunctuatedWatermarks&#125; </span><br><span class="line"> * 和 &#123;@code AssignerWithPeriodicWatermarks&#125; 一同包含了进来。</span><br><span class="line"> *&#x2F;</span><br><span class="line">@Public</span><br><span class="line">public interface WatermarkGenerator&lt;T&gt; &#123;</span><br><span class="line"></span><br><span class="line">    &#x2F;**</span><br><span class="line">     * 每来一条事件数据调用一次，可以检查或者记录事件的时间戳，或者也可以基于事件数据本身去生成 watermark。</span><br><span class="line">     *&#x2F;</span><br><span class="line">    void onEvent(T event, long eventTimestamp, WatermarkOutput output);</span><br><span class="line"></span><br><span class="line">    &#x2F;**</span><br><span class="line">     * 周期性的调用，也许会生成新的 watermark，也许不会。</span><br><span class="line">     *</span><br><span class="line">     * &lt;p&gt;调用此方法生成 watermark 的间隔时间由 &#123;@link ExecutionConfig#getAutoWatermarkInterval()&#125; 决定。</span><br><span class="line">     *&#x2F;</span><br><span class="line">    void onPeriodicEmit(WatermarkOutput output);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>watermark 的生成方式本质上是有两种：<em>周期性生成</em>和<em>标记生成</em>。</p>
+<p>周期性生成器通常通过 <code>onEvent()</code> 观察传入的事件数据，然后在框架调用 <code>onPeriodicEmit()</code> 时发出 watermark。</p>
+<p>标记生成器将查看 <code>onEvent()</code> 中的事件数据，并等待检查在流中携带 watermark 的特殊标记事件或打点数据。当获取到这些事件数据时，它将立即发出 watermark。通常情况下，标记生成器不会通过 <code>onPeriodicEmit()</code> 发出 watermark。</p>
+<p>接下来，我们将学习如何实现上述两类生成器。</p>
+<h3 id="自定义周期性-Watermark-生成器-1"><a href="#自定义周期性-Watermark-生成器-1" class="headerlink" title="自定义周期性 Watermark 生成器"></a>自定义周期性 Watermark 生成器</h3><p>周期性生成器会观察流事件数据并定期生成 watermark（其生成可能取决于流数据，或者完全基于处理时间）。</p>
+<p>生成 watermark 的时间间隔（每 <em>n</em> 毫秒）可以通过 <code>ExecutionConfig.setAutoWatermarkInterval(...)</code> 指定。每次都会调用生成器的 <code>onPeriodicEmit()</code> 方法，如果返回的 watermark 非空且值大于前一个 watermark，则将发出新的 watermark。</p>
+<p>如下是两个使用周期性 watermark 生成器的简单示例。注意：Flink 已经附带了 <code>BoundedOutOfOrdernessWatermarks</code>，它实现了 <code>WatermarkGenerator</code>，其工作原理与下面的 <code>BoundedOutOfOrdernessGenerator</code> 相似。可以在<a target="_blank" rel="noopener" href="https://ci.apache.org/projects/flink/flink-docs-release-1.12/zh/dev/event_timestamp_extractors.html">这里</a>参阅如何使用它的内容。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/**</span></span><br><span class="line"><span class="comment"> * 该 watermark 生成器可以覆盖的场景是：数据源在一定程度上乱序。</span></span><br><span class="line"><span class="comment"> * 即某个最新到达的时间戳为 t 的元素将在最早到达的时间戳为 t 的元素之后最多 n 毫秒到达。</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">BoundedOutOfOrdernessGenerator</span> <span class="keyword">implements</span> <span class="title">WatermarkGenerator</span>&lt;<span class="title">MyEvent</span>&gt; </span>&#123;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">final</span> <span class="keyword">long</span> maxOutOfOrderness = <span class="number">3500</span>; <span class="comment">// 3.5 秒</span></span><br><span class="line"></span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">long</span> currentMaxTimestamp;</span><br><span class="line"></span><br><span class="line">    <span class="meta">@Override</span></span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">onEvent</span><span class="params">(MyEvent event, <span class="keyword">long</span> eventTimestamp, WatermarkOutput output)</span> </span>&#123;</span><br><span class="line">        currentMaxTimestamp = Math.max(currentMaxTimestamp, eventTimestamp);</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="meta">@Override</span></span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">onPeriodicEmit</span><span class="params">(WatermarkOutput output)</span> </span>&#123;</span><br><span class="line">        <span class="comment">// 发出的 watermark = 当前最大时间戳 - 最大乱序时间</span></span><br><span class="line">        output.emitWatermark(<span class="keyword">new</span> Watermark(currentMaxTimestamp - maxOutOfOrderness - <span class="number">1</span>));</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">/**</span></span><br><span class="line"><span class="comment"> * 该生成器生成的 watermark 滞后于处理时间固定量。它假定元素会在有限延迟后到达 Flink。</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">TimeLagWatermarkGenerator</span> <span class="keyword">implements</span> <span class="title">WatermarkGenerator</span>&lt;<span class="title">MyEvent</span>&gt; </span>&#123;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">final</span> <span class="keyword">long</span> maxTimeLag = <span class="number">5000</span>; <span class="comment">// 5 秒</span></span><br><span class="line"></span><br><span class="line">    <span class="meta">@Override</span></span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">onEvent</span><span class="params">(MyEvent event, <span class="keyword">long</span> eventTimestamp, WatermarkOutput output)</span> </span>&#123;</span><br><span class="line">        <span class="comment">// 处理时间场景下不需要实现</span></span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="meta">@Override</span></span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">onPeriodicEmit</span><span class="params">(WatermarkOutput output)</span> </span>&#123;</span><br><span class="line">        output.emitWatermark(<span class="keyword">new</span> Watermark(System.currentTimeMillis() - maxTimeLag));</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+
+
+
+<h3 id="自定义标记-Watermark-生成器"><a href="#自定义标记-Watermark-生成器" class="headerlink" title="自定义标记 Watermark 生成器"></a>自定义标记 Watermark 生成器</h3><p>标记 watermark 生成器观察流事件数据并在获取到带有 watermark 信息的特殊事件元素时发出 watermark。</p>
+<p>如下是实现标记生成器的方法，当事件带有某个指定标记时，该生成器就会发出 watermark：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">PunctuatedAssigner</span> <span class="keyword">implements</span> <span class="title">WatermarkGenerator</span>&lt;<span class="title">MyEvent</span>&gt; </span>&#123;</span><br><span class="line"></span><br><span class="line">    <span class="meta">@Override</span></span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">onEvent</span><span class="params">(MyEvent event, <span class="keyword">long</span> eventTimestamp, WatermarkOutput output)</span> </span>&#123;</span><br><span class="line">        <span class="keyword">if</span> (event.hasWatermarkMarker()) &#123;</span><br><span class="line">            output.emitWatermark(<span class="keyword">new</span> Watermark(event.getWatermarkTimestamp()));</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="meta">@Override</span></span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">onPeriodicEmit</span><span class="params">(WatermarkOutput output)</span> </span>&#123;</span><br><span class="line">        <span class="comment">// onEvent 中已经实现</span></span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<blockquote>
+<p><strong>注意</strong>：可以针对每个事件去生成 watermark。但是由于每个 watermark 都会在下游做一些计算，因此过多的 watermark 会降低程序性能。</p>
+</blockquote>
+<h3 id="Watermark-策略与-Kafka-连接器"><a href="#Watermark-策略与-Kafka-连接器" class="headerlink" title="Watermark 策略与 Kafka 连接器"></a>Watermark 策略与 Kafka 连接器</h3><p>当使用 <a target="_blank" rel="noopener" href="https://ci.apache.org/projects/flink/flink-docs-release-1.12/zh/dev/connectors/kafka.html">Apache Kafka 连接器</a>作为数据源时，每个 Kafka 分区可能有一个简单的事件时间模式（递增的时间戳或有界无序）。然而，当使用 Kafka 数据源时，多个分区常常并行使用，因此交错来自各个分区的事件数据就会破坏每个分区的事件时间模式（这是 Kafka 消费客户端所固有的）。</p>
+<p>在这种情况下，你可以使用 Flink 中可识别 Kafka 分区的 watermark 生成机制。使用此特性，将在 Kafka 消费端内部针对每个 Kafka 分区生成 watermark，并且不同分区 watermark 的合并方式与在数据流 shuffle 时的合并方式相同。</p>
+<p>例如，如果每个 Kafka 分区中的事件时间戳严格递增，则使用<a target="_blank" rel="noopener" href="https://ci.apache.org/projects/flink/flink-docs-release-1.12/zh/dev/event_timestamp_extractors.html#%E6%97%B6%E9%97%B4%E6%88%B3%E5%8D%95%E8%B0%83%E9%80%92%E5%A2%9E">时间戳单调递增</a>按分区生成的 watermark 将生成完美的全局 watermark。注意，我们在示例中未使用 <code>TimestampAssigner</code>，而是使用了 Kafka 记录自身的时间戳。</p>
+<p>下图展示了如何使用单 kafka 分区 watermark 生成机制，以及在这种情况下 watermark 如何通过 dataflow 传播。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">FlinkKafkaConsumer&lt;MyType&gt; kafkaSource = <span class="keyword">new</span> FlinkKafkaConsumer&lt;&gt;(<span class="string">&quot;myTopic&quot;</span>, schema, props);</span><br><span class="line">kafkaSource.assignTimestampsAndWatermarks(</span><br><span class="line">        WatermarkStrategy.</span><br><span class="line">                .forBoundedOutOfOrderness(Duration.ofSeconds(<span class="number">20</span>)));</span><br><span class="line"></span><br><span class="line">DataStream&lt;MyType&gt; stream = env.addSource(kafkaSource);</span><br></pre></td></tr></table></figure>
+<p><img src="https://ci.apache.org/projects/flink/flink-docs-release-1.12/fig/parallel_kafka_watermarks.svg"></p>
+<blockquote>
+<p>一般情况下，在将 watermark 转发到下游之前，需要算子对其进行触发的事件完全进行处理。例如，<code>WindowOperator</code> 将首先计算该 watermark 触发的所有窗口数据，当且仅当由此 watermark 触发计算进而生成的所有数据被转发到下游之后，其才会被发送到下游。换句话说，由于此 watermark 的出现而产生的所有数据元素都将在此 watermark 之前发出。</p>
+<p>相同的规则也适用于 <code>TwoInputStreamOperator</code>。但是，在这种情况下，算子当前的 watermark 会取其两个输入的最小值。</p>
+</blockquote>
+<h3 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h3><p>Flink Watermark是基于已经收集的消息来估算是否还有消息未到达，本质上是一个<strong>时间戳</strong>。</p>
+<p>watermark 的生成方式本质上是有两种：*<strong>周期性生成**<em>和</em></strong>标记生成***</p>
+
+      
+    </div>
+    
+    
+    
+
+    
+
+    
+
+    
+
+    <footer class="post-footer">
+      
+        <div class="post-tags">
+          
+            <a href="/tags/Flink/" rel="tag"># Flink</a>
+          
+        </div>
+      
+
+      
+      
+      
+
+      
+        <div class="post-nav">
+          <div class="post-nav-next post-nav-item">
+            
+              <a href="/2021/02/20/hello-world/" rel="next" title="Hello World">
+                <i class="fa fa-chevron-left"></i> Hello World
+              </a>
+            
+          </div>
+
+          <span class="post-nav-divider"></span>
+
+          <div class="post-nav-prev post-nav-item">
+            
+              <a href="/2021/02/22/Flink-%E7%8A%B6%E6%80%81%E4%B8%8E%E5%AE%B9%E9%94%99/" rel="prev" title="Flink 状态与容错">
+                Flink 状态与容错 <i class="fa fa-chevron-right"></i>
+              </a>
+            
+          </div>
+        </div>
+      
+
+      
+      
+    </footer>
+  </div>
+  
+  
+  
+  </article>
+
+
+
+    <div class="post-spread">
+      
+    </div>
+  </div>
+
+
+          </div>
+          
+
+
+          
+
+  
+
+
+
+        </div>
+        
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside id="sidebar" class="sidebar">
+    
+    <div class="sidebar-inner">
+
+      
+
+      
+        <ul class="sidebar-nav motion-element">
+          <li class="sidebar-nav-toc sidebar-nav-active" data-target="post-toc-wrap">
+            文章目录
+          </li>
+          <li class="sidebar-nav-overview" data-target="site-overview-wrap">
+            站点概览
+          </li>
+        </ul>
+      
+
+      <section class="site-overview-wrap sidebar-panel">
+        <div class="site-overview">
+          <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+            
+              <p class="site-author-name" itemprop="name"></p>
+              <p class="site-description motion-element" itemprop="description"></p>
+          </div>
+
+          <nav class="site-state motion-element">
+
+            
+              <div class="site-state-item site-state-posts">
+              
+                <a href="/archives">
+              
+                  <span class="site-state-item-count">4</span>
+                  <span class="site-state-item-name">日志</span>
+                </a>
+              </div>
+            
+
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-tags">
+                
+                  <span class="site-state-item-count">2</span>
+                  <span class="site-state-item-name">标签</span>
+                
+              </div>
+            
+
+          </nav>
+
+          
+
+          
+
+          
+          
+
+          
+          
+
+          
+
+        </div>
+      </section>
+
+      
+      <!--noindex-->
+        <section class="post-toc-wrap motion-element sidebar-panel sidebar-panel-active">
+          <div class="post-toc">
+
+            
+              
+            
+
+            
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#Flink-Watermark"><span class="nav-number">1.</span> <span class="nav-text">Flink Watermark</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#EventTime-%E5%92%8C-Watermark"><span class="nav-number">1.1.</span> <span class="nav-text">EventTime 和 Watermark</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Watermark%E7%9A%84%E7%94%9F%E6%88%90"><span class="nav-number">1.2.</span> <span class="nav-text">Watermark的生成</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E4%BD%BF%E7%94%A8-Watermark-%E7%AD%96%E7%95%A5"><span class="nav-number">1.3.</span> <span class="nav-text">使用 Watermark 策略</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%A4%84%E7%90%86%E7%A9%BA%E9%97%B2%E6%95%B0%E6%8D%AE%E6%BA%90"><span class="nav-number">1.4.</span> <span class="nav-text">处理空闲数据源</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E8%87%AA%E5%AE%9A%E4%B9%89-WatermarkGenerator"><span class="nav-number">1.5.</span> <span class="nav-text">自定义 WatermarkGenerator</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E8%87%AA%E5%AE%9A%E4%B9%89%E5%91%A8%E6%9C%9F%E6%80%A7-Watermark-%E7%94%9F%E6%88%90%E5%99%A8"><span class="nav-number">1.6.</span> <span class="nav-text">自定义周期性 Watermark 生成器</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E8%87%AA%E5%AE%9A%E4%B9%89%E5%91%A8%E6%9C%9F%E6%80%A7-Watermark-%E7%94%9F%E6%88%90%E5%99%A8-1"><span class="nav-number">1.7.</span> <span class="nav-text">自定义周期性 Watermark 生成器</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E8%87%AA%E5%AE%9A%E4%B9%89%E6%A0%87%E8%AE%B0-Watermark-%E7%94%9F%E6%88%90%E5%99%A8"><span class="nav-number">1.8.</span> <span class="nav-text">自定义标记 Watermark 生成器</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Watermark-%E7%AD%96%E7%95%A5%E4%B8%8E-Kafka-%E8%BF%9E%E6%8E%A5%E5%99%A8"><span class="nav-number">1.9.</span> <span class="nav-text">Watermark 策略与 Kafka 连接器</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%80%BB%E7%BB%93"><span class="nav-number">1.10.</span> <span class="nav-text">总结</span></a></li></ol></li></ol></div>
+            
+
+          </div>
+        </section>
+      <!--/noindex-->
+      
+
+      
+
+    </div>
+  </aside>
+
+
+        
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright">&copy; <span itemprop="copyrightYear">2021</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">weimingkang</span>
+
+  
+</div>
+
+
+  <div class="powered-by">由 <a class="theme-link" target="_blank" href="https://hexo.io">Hexo</a> 强力驱动</div>
+
+
+
+  <span class="post-meta-divider">|</span>
+
+
+
+  <div class="theme-info">主题 &mdash; <a class="theme-link" target="_blank" href="https://github.com/iissnan/hexo-theme-next">NexT.Pisces</a> v5.1.4</div>
+
+
+
+
+        
+
+
+
+
+
+
+
+        
+      </div>
+    </footer>
+
+    
+      <div class="back-to-top">
+        <i class="fa fa-arrow-up"></i>
+        
+      </div>
+    
+
+    
+
+  </div>
+
+  
+
+<script type="text/javascript">
+  if (Object.prototype.toString.call(window.Promise) !== '[object Function]') {
+    window.Promise = null;
+  }
+</script>
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery/index.js?v=2.1.3"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fastclick/lib/fastclick.min.js?v=1.0.6"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery_lazyload/jquery.lazyload.js?v=1.9.7"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fancybox/source/jquery.fancybox.pack.js?v=2.1.5"></script>
+  
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/utils.js?v=5.1.4"></script>
+
+  <script type="text/javascript" src="/js/src/motion.js?v=5.1.4"></script>
+
+
+
+  
+  
+
+
+  <script type="text/javascript" src="/js/src/affix.js?v=5.1.4"></script>
+
+  <script type="text/javascript" src="/js/src/schemes/pisces.js?v=5.1.4"></script>
+
+
+
+  
+  <script type="text/javascript" src="/js/src/scrollspy.js?v=5.1.4"></script>
+<script type="text/javascript" src="/js/src/post-details.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/bootstrap.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  
+
+
+
+
+	
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+</body>
+</html>
